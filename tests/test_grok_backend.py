@@ -150,7 +150,8 @@ def test_envelope_dispatch_and_session_resume(grok_home: Path) -> None:
     ]
 
     def fake_run(argv, _stdin, **kwargs):
-        prompts.append((argv, kwargs["env"], kwargs["encoding"]))
+        prompt_text = Path(argv[argv.index("--prompt-file") + 1]).read_text(encoding="utf-8")
+        prompts.append((argv, kwargs["env"], kwargs["encoding"], prompt_text))
         return 0, json.dumps(outputs.pop(0)), ""
 
     dispatched = []
@@ -172,8 +173,9 @@ def test_envelope_dispatch_and_session_resume(grok_home: Path) -> None:
     assert prompts[1][0][prompts[1][0].index("--resume") + 1] == SID
     assert prompts[2][0][prompts[2][0].index("--resume") + 1] == SID
     assert prompts[0][0][prompts[0][0].index("--tools") + 1] == "todo_write"
-    assert "inspect_graph" in prompts[0][0][prompts[0][0].index("-p") + 1]
-    assert "never infer a tool name" in prompts[0][0][prompts[0][0].index("-p") + 1]
+    assert "inspect_graph" in prompts[0][3]
+    assert "never infer a tool name" in prompts[0][3]
+    assert "-p" not in prompts[0][0]
     assert prompts[0][0][prompts[0][0].index("--disallowed-tools") + 1] == (
         "todo_write,search_tool,use_tool,Agent"
     )
@@ -181,6 +183,42 @@ def test_envelope_dispatch_and_session_resume(grok_home: Path) -> None:
     assert "--model" not in prompts[0][0]
     assert prompts[0][1]["GROK_DISABLE_API_KEY_AUTH"] == "1"
     assert prompts[0][2] == "utf-8"
+
+
+def test_long_unicode_payload_uses_bounded_argv_and_cleans_file(grok_home: Path) -> None:
+    import subprocess
+
+    _oauth_login(grok_home)
+    system = "application rules \ud55c\uae00 " * 4000
+    user = "request payload \u03bb " * 4000
+    captured_paths = []
+
+    def fake_run(argv, _stdin, **_kwargs):
+        path = Path(argv[argv.index("--prompt-file") + 1])
+        captured_paths.append(path)
+        content = path.read_text(encoding="utf-8")
+        assert system in content
+        assert user in content
+        assert len(subprocess.list2cmdline(argv).encode("utf-16-le")) // 2 < 8000
+        return 0, json.dumps({"text": json.dumps({"tool_calls": [], "rationale": "ok", "done": True}), "sessionId": SID}), ""
+
+    with patch("comfyclaw.agent_backends._stream_session.run_cli_oneshot", side_effect=fake_run):
+        assert GrokCLIBackend().run_tool_loop(system, user, [], lambda _call: "") == "ok"
+    assert captured_paths and all(not path.exists() for path in captured_paths)
+
+
+def test_launch_error_is_not_reported_as_invalid_json(grok_home: Path) -> None:
+    _oauth_login(grok_home)
+    captured_paths = []
+
+    def fake_run(argv, _stdin, **_kwargs):
+        captured_paths.append(Path(argv[argv.index("--prompt-file") + 1]))
+        return 127, "", "[WinError 206] launch failed"
+
+    with patch("comfyclaw.agent_backends._stream_session.run_cli_oneshot", side_effect=fake_run):
+        with pytest.raises(RuntimeError, match=r"execution failed .*WinError 206"):
+            GrokCLIBackend().run_tool_loop("system", "request", [], lambda _call: "")
+    assert all(not path.exists() for path in captured_paths)
 
 
 def test_grok_workflow_summaries_omit_stored_prompt_text() -> None:
