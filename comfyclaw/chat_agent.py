@@ -17,6 +17,7 @@ Supported backends:
   in with through ``codex login``.
 * ``"gemini-cli"`` — drives the local ``gemini -p`` CLI.  Uses the
   Google OAuth session the user signed in with through ``gemini``.
+* ``"grok-cli"`` — drives Grok Build CLI with subscription OAuth.
 
 The dispatcher :func:`chat_stream` picks the backend based on the
 ``agent_backend`` argument so the WebSocket handler can route chat
@@ -239,7 +240,7 @@ async def chat_stream(
         Only used by the LiteLLM backend.
     agent_backend:
         ``"litellm"`` (default), ``"claude-code"``, ``"codex"``, or
-        ``"gemini-cli"``.  Anything else falls back to LiteLLM with a
+        ``"gemini-cli"``, or ``"grok-cli"``. Anything else falls back to LiteLLM with a
         log warning.
     """
     backend = (agent_backend or "litellm").strip().lower().replace("_", "-")
@@ -279,6 +280,33 @@ async def chat_stream(
             return
         async for tok in _gemini_chat_stream(messages, workflow, model, skill_block=skill_block):
             yield tok
+        return
+    if backend in ("grok-cli", "grok"):
+        if images:
+            yield "⚠️  Image attachments are currently supported in API mode (LiteLLM) only."
+            return
+        from .agent_backends.grok_backend import GrokCLIBackend, _get_recorded_grok_session
+
+        prior, latest = _flatten_history(messages)
+        user_text = latest if _get_recorded_grok_session(session_id) else (
+            f"Previous conversation:\n{prior}\n\nLatest user message:\n{latest}" if prior else latest
+        )
+        grok = GrokCLIBackend(model=model, session_key=session_id)
+        try:
+            reply = await asyncio.to_thread(
+                grok.run_tool_loop,
+                _SYSTEM_BASE + skill_block + _summarize_workflow(workflow)
+                + "\nFor this chat answer, use no tools. Put the full answer in rationale, "
+                "set tool_calls to [] and done to true.",
+                user_text,
+                [],
+                lambda _call: (_ for _ in ()).throw(RuntimeError("Chat tools are disabled")),
+                None,
+                1,
+            )
+            yield reply
+        except RuntimeError as exc:
+            yield f"⚠️  Grok CLI error: {exc}"
         return
     if backend != "litellm":
         log.warning(

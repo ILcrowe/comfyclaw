@@ -13,6 +13,7 @@ Built-in backends
                      ``--output-format stream-json`` stdio session.
 ``codex``          : OpenAI Codex CLI (``codex``) over ``codex exec --json``.
 ``gemini-cli``     : Google Gemini CLI (``gemini``) over ``gemini -p --output-format json``.
+``grok-cli``       : Grok Build CLI (``grok``) with OAuth subscription auth.
 
 Selection
 ---------

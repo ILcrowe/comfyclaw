@@ -130,6 +130,7 @@ def run_cli_oneshot(
     timeout: float = 600.0,
     env: dict[str, str] | None = None,
     env_overrides: dict[str, str | None] | None = None,
+    encoding: str | None = None,
 ) -> tuple[int, str, str]:
     """Run ``argv`` with ``stdin_text`` piped in, return ``(rc, stdout, stderr)``."""
     import os
@@ -147,6 +148,7 @@ def run_cli_oneshot(
             input=stdin_text,
             capture_output=True,
             text=True,
+            encoding=encoding,
             timeout=timeout,
             check=False,
             env=child_env,
@@ -204,6 +206,7 @@ def run_envelope_loop(
     protocol_in_system: bool = False,
     start_message: str | None = None,
     incremental_session: bool = False,
+    raise_on_error: bool = False,
 ) -> str:
     """Drive a CLI agent that doesn't natively support tool-use.
 
@@ -240,6 +243,8 @@ def run_envelope_loop(
             if on_event:
                 on_event("error", f"{backend_name} CLI failed: {exc}", "", None)
             print(f"[{backend_name}] CLI failed: {exc}", file=sys.stderr)
+            if raise_on_error:
+                raise
             break
 
         env = extract_json_envelope(raw)
@@ -255,6 +260,8 @@ def run_envelope_loop(
                 f"[{backend_name}] Could not parse envelope, raw output: {raw[:500]}",
                 file=sys.stderr,
             )
+            if raise_on_error:
+                raise RuntimeError(f"Could not parse JSON envelope from {backend_name}")
             break
 
         if env.get("rationale"):

@@ -202,6 +202,17 @@ def get_backend(
             _check_cli_auth("gemini-cli")
             return be
         _missing_warn("gemini-cli")
+    elif name in ("grok-cli", "grok"):
+        from .grok_backend import GrokCLIBackend
+
+        be = GrokCLIBackend(
+            model=model or extra.get("model", ""),
+            session_key=str(extra.get("session_id") or ""),
+        )
+        if be.is_available():
+            _check_cli_auth("grok-cli")
+            return be
+        raise RuntimeError("Grok Build CLI is not installed. Install it, then run `grok login`.")
     else:
         print(f"[agent_backends] Unknown backend {name!r} — falling back to litellm.")
 
@@ -550,4 +561,29 @@ def probe_all() -> list[BackendStatus]:
                 can_install=gemini_installer,
             )
         )
+    # ── grok-cli ─────────────────────────────────────────────────────────────
+    from .grok_backend import _grok_bin, _guard_subscription_config, _oauth_cache_present
+
+    grok_bin = shutil.which(_grok_bin()) or ""
+    if not grok_bin:
+        out.append(BackendStatus(
+            name="grok-cli", available=False, state="needs_install",
+            detail="Grok Build CLI is not installed. Install it, then run `grok login`.",
+        ))
+    else:
+        try:
+            _guard_subscription_config()
+            signed_in = _oauth_cache_present()
+            state: BackendState = "ok" if signed_in else "needs_auth"
+            detail = (
+                "Signed in with Grok OAuth (cached session; verified on first call)"
+                if signed_in else "Grok CLI is installed but not authenticated. Run `grok login`."
+            )
+        except RuntimeError as exc:
+            state, detail = "error", str(exc)
+        out.append(BackendStatus(
+            name="grok-cli", available=(state == "ok"), state=state,
+            binary_path=grok_bin, auth_method="oauth" if state == "ok" else "",
+            detail=detail,
+        ))
     return out

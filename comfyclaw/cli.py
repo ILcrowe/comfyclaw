@@ -655,10 +655,10 @@ def _cmd_serve(args: argparse.Namespace) -> None:
             run_cfg["agent_session_id"] = session_id
 
             # Never route provider API credentials into CLI backends
-            # (claude-code / codex / gemini-cli). Those backends must use
+            # (claude-code / codex / gemini-cli / grok-cli). Those backends must use
             # their own local auth sessions to avoid stale-key confusion.
             backend_eff = str(run_cfg.get("agent_backend") or "").strip().lower().replace("_", "-")
-            if backend_eff in {"claude-code", "codex", "gemini-cli"}:
+            if backend_eff in {"claude-code", "codex", "gemini-cli", "grok-cli"}:
                 run_cfg["api_key"] = ""
                 run_cfg["api_base"] = ""
 
@@ -1303,13 +1303,13 @@ def _build_parser() -> argparse.ArgumentParser:
         p.add_argument(
             "--agent-backend",
             default=_env_str("COMFYCLAW_AGENT_BACKEND", "litellm"),
-            choices=["litellm", "claude-code", "codex", "gemini-cli"],
+            choices=["litellm", "claude-code", "codex", "gemini-cli", "grok-cli"],
             metavar="BACKEND",
             help=(
                 "Agent driver: 'litellm' (default — any LiteLLM provider), "
                 "'claude-code' (uses `claude` CLI), 'codex' (uses `codex` CLI), "
-                "'gemini-cli' (uses `gemini` CLI). Falls back to litellm if the "
-                "requested CLI binary is missing."
+                "'gemini-cli' (uses `gemini` CLI), 'grok-cli' (uses `grok` CLI). "
+                "Grok requires a subscription login and does not fall back to an API backend."
             ),
         )
         p.add_argument(

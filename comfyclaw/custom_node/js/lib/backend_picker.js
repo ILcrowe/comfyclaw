@@ -5,6 +5,7 @@
  *   • Claude Code — uses the `claude` CLI (must be installed + signed in).
  *   • Codex      — uses the `codex` CLI.
  *   • Gemini CLI — uses the `gemini` CLI.
+ *   • Grok CLI   — uses the `grok` CLI with a subscription login.
  *
  * Availability is fed in from the server via the ``agent_backends`` WS
  * message (see ``SyncServer._dispatch`` -> ``list_agent_backends``).
@@ -39,6 +40,8 @@ const BACKENDS = [
     letter: "O", brand: "#10a37f" },
   { id: "gemini-cli",  label: "Gemini CLI",   desc: "Uses the `gemini` CLI.",
     letter: "G", brand: "#4285f4" },
+  { id: "grok-cli",    label: "Grok CLI",     desc: "Uses `grok login` (subscription OAuth).",
+    letter: "X", brand: "#242424" },
 ];
 
 function _logoHtml(meta, size = 14) {

@@ -59,7 +59,7 @@ graph, validates, and renders, all on the live canvas.</em></p>
 - **Self-evolving skills** — reusable lessons are distilled from good and bad
   runs and (with your approval) committed to a growing skill library.
 - **Any agent backend** — LiteLLM (Anthropic, OpenAI, Gemini, Ollama, 100+
-  providers) or a signed-in CLI agent (`claude`, `codex`, `gemini`).
+  providers) or a signed-in CLI agent (`claude`, `codex`, `gemini`, `grok`).
 
 ---
 
@@ -76,7 +76,7 @@ ComfyClaw server alongside ComfyUI.
 | **Python 3.10+** | 3.12+ recommended |
 | **[ComfyUI](https://github.com/comfyanonymous/ComfyUI)** | Desktop app, local checkout, or a deployed server reachable over HTTP |
 | **A model in ComfyUI** | ComfyClaw builds workflows; ComfyUI still needs the referenced checkpoints / LoRAs / VAEs |
-| **An agent backend** | A LiteLLM provider key, local Ollama, or a signed-in CLI backend (`claude`, `codex`, `gemini`) |
+| **An agent backend** | A LiteLLM provider key, local Ollama, or a signed-in CLI backend (`claude`, `codex`, `gemini`, `grok`) |
 
 ### 2. Install
 
@@ -95,6 +95,26 @@ $EDITOR .env
 
 Set `COMFYUI_ADDR`, optionally `COMFYUI_DIR`, and either a LiteLLM provider key
 or a CLI backend. `.env` is loaded automatically; CLI flags override it.
+
+To use Grok Build with a Grok / SuperGrok subscription, install the official
+`grok` CLI and sign in separately with `grok login`. Then set:
+
+```env
+COMFYCLAW_AGENT_BACKEND=grok-cli
+COMFYCLAW_GROK_BIN=grok
+COMFYCLAW_GROK_SUBSCRIPTION_ONLY=true
+```
+
+The five agent backends are `litellm`, `claude-code`, `codex`, `gemini-cli`,
+and `grok-cli`. The Grok backend does not accept an xAI API key. It removes
+API-key environment overrides, blocks API-key auth in the Grok child process,
+and rejects model-specific API credential settings. ComfyClaw owns tool
+execution through its JSON-envelope loop; Grok's native tools are disabled.
+The CLI selects the available default model for the signed-in subscription.
+The Agents tab shows whether the CLI is installed and has a cached OAuth login.
+The first actual call verifies that login with Grok itself.
+If the CLI is missing, the Grok selection stops with an install message
+instead of silently switching to an API backend.
 
 ### 4. Install the ComfyUI plugin
 

@@ -9,6 +9,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `grok-cli` agent backend using the official Grok Build CLI and a cached
+  `grok login` OAuth subscription session. ComfyClaw dispatches JSON-envelope
+  tool requests, resumes each panel session independently, and exposes CLI
+  installation/auth status in the Agents tab. API-key auth is blocked.
 - Post-generation feedback dialog in the ComfyUI panel with thumbs-up /
   thumbs-down rating, optional comment, and opt-in skill evolution.
 - Post-run `SkillEvolver` path that distills human-labeled good cases into

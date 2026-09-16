@@ -1386,6 +1386,11 @@ const CLI_MODELS = {
       { value: "gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
     ],
   },
+  "grok-cli": {
+    label: "Grok CLI",
+    color: "#242424",
+    models: [{ value: "", label: "CLI default (subscription)" }],
+  },
 };
 
 // LocalStorage key holding the per-CLI-backend last-selected model.
@@ -1410,7 +1415,7 @@ function _saveCliModelMap() {
 
 /** Returns true if the given backend id is one of the CLI-driven backends. */
 function _isCliBackend(id) {
-  return id === "claude-code" || id === "codex" || id === "gemini-cli";
+  return id === "claude-code" || id === "codex" || id === "gemini-cli" || id === "grok-cli";
 }
 
 function _normaliseCliModel(backendId, value) {
@@ -2531,8 +2536,8 @@ function createSettingsModal() {
   }
 
   // ── Agents tab ───────────────────────────────────────────────────────────────
-  // Lists the four agent backends (LiteLLM / Claude Code / Codex / Gemini CLI)
-  // with their installation + sign-in state, plus per-backend Install /
+  // Lists the agent backends and their installation + sign-in state,
+  // plus per-backend Install /
   // Sign-in / Re-check buttons.  The dropdown next to the composer textarea
   // is intentionally read-only for these affordances — this is where the user
   // manages them.
@@ -2663,7 +2668,7 @@ function createSettingsModal() {
     container.innerHTML = `
       <div style="font-size:11px; color:#a6adc8; line-height:1.6; margin-bottom:12px;">
         ComfyClaw can drive any of these agent backends. CLI backends
-        (Claude Code, Codex, Gemini CLI) reuse credentials cached by their
+        (Claude Code, Codex, Gemini CLI, Grok CLI) reuse credentials cached by their
         binaries — your paid subscription is enough, no API key required.
         LiteLLM is the API-key fallback.
       </div>
@@ -4922,6 +4927,7 @@ function createComfyClawPanel() {
     "claude-code": { label: "Claude Code", letter: "C", brand: "#cc785c", needsApiKey: false },
     "codex": { label: "Codex", letter: "O", brand: "#10a37f", needsApiKey: false },
     "gemini-cli": { label: "Gemini CLI", letter: "G", brand: "#4285f4", needsApiKey: false },
+    "grok-cli": { label: "Grok CLI", letter: "X", brand: "#242424", needsApiKey: false },
   };
 
   /** Render the brand-coloured logo chip for a backend. */
@@ -5187,6 +5193,10 @@ function createComfyClawPanel() {
     if (backendId === "claude-code") return _openClaudeAuthModal(backendId, opts);
     if (backendId === "codex") return _openCodexAuthModal(backendId, opts);
     if (backendId === "gemini-cli") return _openGeminiAuthModal(backendId, opts);
+    if (backendId === "grok-cli") {
+      showToast("Run `grok login` in a terminal, then click Re-check. ComfyClaw does not store Grok credentials.", "info", 10000);
+      return;
+    }
     showToast(
       `No in-panel sign-in for ${backendId} yet.`,
       "warning",

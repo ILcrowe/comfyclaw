@@ -51,7 +51,7 @@ Message types (client → server):
   list_provider_keys       — ask which LiteLLM provider env-vars are set
                               (panel filters its provider bar accordingly)
   backend_install_start    — kick off CLI installer
-                              (claude-code / codex / gemini-cli)
+                              (claude-code / codex / gemini-cli / grok-cli)
   backend_install_cancel
   backend_auth_start       — drive sign-in flow for claude-code or codex.
                               Optional ``auth_method`` selects the variant
@@ -846,7 +846,7 @@ class SyncServer:
             or os.environ.get("COMFYCLAW_AGENT_BACKEND", "").strip().lower()
             or "litellm"
         )
-        if backend in {"claude-code", "codex", "gemini-cli"}:
+        if backend in {"claude-code", "codex", "gemini-cli", "grok-cli"}:
             api_key = None
             api_base = None
 
@@ -1563,7 +1563,7 @@ class SyncServer:
 
         # CLI backends must use their own local auth and ignore provider
         # API-key/base overrides sent by the panel.
-        if agent_backend in {"claude-code", "codex", "gemini-cli"}:
+        if agent_backend in {"claude-code", "codex", "gemini-cli", "grok-cli"}:
             api_key = None
             api_base = None
 
@@ -1623,7 +1623,7 @@ class SyncServer:
         api_key: str | None = (msg.get("api_key") or "").strip() or self._api_key
         api_base: str | None = (msg.get("api_base") or "").strip() or None
         backend = (msg.get("agent_backend") or "").strip().lower() or "litellm"
-        if backend in {"claude-code", "codex", "gemini-cli"}:
+        if backend in {"claude-code", "codex", "gemini-cli", "grok-cli"}:
             api_key = None
             api_base = None
 
@@ -1719,7 +1719,7 @@ class SyncServer:
                 self._handler,
                 self.host,
                 self.port,
-                reuse_port=True,
+                reuse_port=(os.name != "nt"),
             ):
                 log.info("[SyncServer] Listening on ws://%s:%d", self.host, self.port)
                 if not self._quiet:
