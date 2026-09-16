@@ -331,6 +331,14 @@ class ClawHarness:
         self._agent.on_agent_event = self._on_agent_event
         self._current_iteration = 0
 
+        if (config.agent_backend or "").strip().lower().replace("_", "-") == "grok-cli":
+            # Grok subscription auth only covers the agent CLI. The existing
+            # image verifier would silently use LiteLLM and an API key.
+            # Generate once and return the image without an API verifier.
+            self._verifier = None
+            log.info("Grok CLI subscription: image verification skipped (no API fallback)")
+            return
+
         if config.modality == "video":
             from .video_verifier import VideoVerifier
 

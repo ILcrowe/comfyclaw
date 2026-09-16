@@ -111,6 +111,8 @@ API-key environment overrides, blocks API-key auth in the Grok child process,
 and rejects model-specific API credential settings. ComfyClaw owns tool
 execution through its JSON-envelope loop; Grok's native tools are disabled.
 The CLI selects the available default model for the signed-in subscription.
+Generation with this backend returns the first completed image without API-based
+visual verification, including when the panel is set to Auto or Co-pilot.
 The Agents tab shows whether the CLI is installed and has a cached OAuth login.
 The first actual call verifies that login with Grok itself.
 If the CLI is missing, the Grok selection stops with an install message

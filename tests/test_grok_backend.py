@@ -104,6 +104,23 @@ def test_factory_never_falls_back_to_api_when_grok_missing(grok_home: Path) -> N
             get_backend("grok-cli", api_key="test")
 
 
+def test_grok_generation_does_not_construct_api_verifier(grok_home: Path) -> None:
+    from comfyclaw.harness import ClawHarness, HarnessConfig
+
+    _oauth_login(grok_home)
+    with (
+        patch.object(GrokCLIBackend, "is_available", return_value=True),
+        patch("comfyclaw.harness.ClawVerifier", side_effect=AssertionError("API verifier used")),
+    ):
+        harness = ClawHarness.from_workflow_dict(
+            {},
+            HarnessConfig(
+                sync_port=0, agent_backend="grok-cli", run_mode="auto", verifier_mode="vlm"
+            ),
+        )
+    assert harness._verifier is None
+
+
 def test_envelope_dispatch_and_session_resume(grok_home: Path) -> None:
     _oauth_login(grok_home)
     prompts = []
