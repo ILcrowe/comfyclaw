@@ -150,6 +150,21 @@ def _record_grok_session(session_key: str, grok_session_id: str) -> None:
         _GROK_SESSION_BY_KEY[session_key] = grok_session_id
 
 
+def _forget_grok_session(session_key: str) -> None:
+    if not session_key:
+        return
+    with _GROK_SESSION_LOCK:
+        _GROK_SESSION_BY_KEY.pop(session_key, None)
+
+
+def _is_provider_safety_block(message: str) -> bool:
+    normalized = message.lower()
+    return (
+        "safety_check_type_" in normalized
+        or "content violates usage guidelines" in normalized
+    )
+
+
 class GrokCLIBackend:
     name = "grok-cli"
 
@@ -247,6 +262,15 @@ class GrokCLIBackend:
                 ) from exc
             if rc != 0 or payload.get("type") == "error":
                 message = payload.get("message") or stderr or f"Grok CLI rc={rc}"
+                if _is_provider_safety_block(str(message)):
+                    # Do not retry or weaken the request.  A blocked session can
+                    # keep the rejected context on later --resume calls, so the
+                    # next user-initiated request must start clean.
+                    _forget_grok_session(self.session_key)
+                    raise RuntimeError(
+                        "Grok blocked this request under its safety policy. "
+                        "The blocked session was reset; no automatic retry was attempted."
+                    )
                 raise RuntimeError(str(message)[:500])
             if not isinstance(payload.get("text"), str):
                 raise RuntimeError("Grok CLI response has no text")

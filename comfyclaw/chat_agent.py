@@ -50,17 +50,35 @@ Guidelines:
 """
 
 
-def _summarize_workflow(workflow: dict | None) -> str:
+def _summarize_workflow(workflow: dict | None, *, omit_stored_text: bool = False) -> str:
     if not workflow:
         return "\n\nCurrent workflow: (empty — no nodes yet)"
     lines: list[str] = []
     for nid, node in list(workflow.items())[:40]:
         ct = node.get("class_type", "?")
-        scalar_inputs = {
-            k: v
-            for k, v in (node.get("inputs") or {}).items()
-            if not isinstance(v, list) and len(str(v)) < 80
-        }
+        scalar_inputs = {}
+        for key, value in (node.get("inputs") or {}).items():
+            if isinstance(value, list) or len(str(value)) >= 80:
+                continue
+            if omit_stored_text and isinstance(value, str) and (
+                ct in ("CLIPTextEncode", "CLIPTextEncodeSDXL")
+                or key.lower()
+                in {
+                    "caption",
+                    "description",
+                    "negative",
+                    "negative_prompt",
+                    "positive",
+                    "positive_prompt",
+                    "prompt",
+                    "text",
+                    "text_g",
+                    "text_l",
+                }
+            ):
+                scalar_inputs[key] = f"<stored text omitted; {len(value)} chars>"
+            else:
+                scalar_inputs[key] = value
         inp_str = ", ".join(f"{k}={v!r}" for k, v in list(scalar_inputs.items())[:3])
         lines.append(f"  [{nid}] {ct}" + (f"  ({inp_str})" if inp_str else ""))
     if len(workflow) > 40:
@@ -285,17 +303,18 @@ async def chat_stream(
         if images:
             yield "⚠️  Image attachments are currently supported in API mode (LiteLLM) only."
             return
-        from .agent_backends.grok_backend import GrokCLIBackend, _get_recorded_grok_session
+        from .agent_backends.grok_backend import GrokCLIBackend
 
-        prior, latest = _flatten_history(messages)
-        user_text = latest if _get_recorded_grok_session(session_id) else (
-            f"Previous conversation:\n{prior}\n\nLatest user message:\n{latest}" if prior else latest
-        )
+        _prior, latest = _flatten_history(messages)
+        # Grok's native --resume session already carries accepted turns.  Do
+        # not replay the panel transcript into a fresh CLI session: a prior
+        # provider-blocked turn can otherwise contaminate the next request.
+        user_text = latest
         grok = GrokCLIBackend(model=model, session_key=session_id)
         try:
             reply = await asyncio.to_thread(
                 grok.run_tool_loop,
-                _SYSTEM_BASE + skill_block + _summarize_workflow(workflow)
+                _SYSTEM_BASE + skill_block + _summarize_workflow(workflow, omit_stored_text=True)
                 + "\nFor this chat answer, use no tools. Put the full answer in rationale, "
                 "set tool_calls to [] and done to true.",
                 user_text,

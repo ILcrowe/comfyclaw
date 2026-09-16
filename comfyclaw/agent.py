@@ -532,6 +532,56 @@ _TOOLS: list[dict] = [
 ]
 
 
+_GROK_REDACTED_INPUT_KEYS = {
+    "caption",
+    "description",
+    "negative",
+    "negative_prompt",
+    "positive",
+    "positive_prompt",
+    "prompt",
+    "text",
+    "text_g",
+    "text_l",
+}
+
+
+def _summarize_workflow_for_grok(workflow: dict) -> str:
+    """Summarize topology without forwarding stored prompt prose to Grok.
+
+    Grok still receives the user's current request.  This only prevents an
+    unrelated workflow's stored prompt text from contaminating structural
+    operations such as adding or reconnecting a node.
+    """
+    if not workflow:
+        return "(empty workflow)"
+    lines = ["Workflow nodes (stored prompt text omitted):"]
+    for nid in sorted(workflow.keys(), key=lambda value: int(value) if value.isdigit() else 0):
+        node = workflow[nid]
+        title = node.get("_meta", {}).get("title") or node.get("class_type", "?")
+        inputs_repr: list[str] = []
+        for key, value in node.get("inputs", {}).items():
+            if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
+                inputs_repr.append(f"{key}=→node{value[0]}[{value[1]}]")
+            elif isinstance(value, str) and (
+                node.get("class_type") in ("CLIPTextEncode", "CLIPTextEncodeSDXL")
+                or key.lower() in _GROK_REDACTED_INPUT_KEYS
+            ):
+                inputs_repr.append(f"{key}=<stored text omitted; {len(value)} chars>")
+            else:
+                value_repr = repr(value) if isinstance(value, str) else json.dumps(value)
+                inputs_repr.append(f"{key}={value_repr}")
+        lines.append(
+            f"  [{nid}] {title} ({node.get('class_type', '?')})"
+            + (f"  {', '.join(inputs_repr)}" if inputs_repr else "")
+        )
+    lines.append(
+        "Stored prompt prose is intentionally unavailable in Grok subscription mode. "
+        "Use only the current user request and structural metadata; do not infer omitted text."
+    )
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Agent
 # ---------------------------------------------------------------------------
@@ -660,6 +710,8 @@ class ClawAgent:
         try:
             match name:
                 case "inspect_workflow":
+                    if self.backend_name == "grok-cli":
+                        return _summarize_workflow_for_grok(wm.workflow), False
                     return WorkflowManager.summarize(wm.workflow), False
 
                 case "query_available_models":
@@ -1211,10 +1263,16 @@ class ClawAgent:
                     if isinstance(text_val, str) and text_val.strip():
                         current_positive = text_val.strip()
                         break
-            if current_positive:
+            if current_positive and self.backend_name != "grok-cli":
                 parts.append(
                     f"## Current Positive Prompt\n{current_positive}\n\n"
                     "Use this only if you decide the user is asking for workflow work."
+                )
+            elif current_positive:
+                parts.append(
+                    "## Current Positive Prompt\n"
+                    "(stored text omitted in Grok subscription mode; use the current user "
+                    "request and structural metadata only)"
                 )
             else:
                 parts.append("## Current Positive Prompt\n(none)")
