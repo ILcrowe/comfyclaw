@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from comfyclaw.agent_backends.grok_backend import GrokCLIBackend, _GROK_INTENT_GATE
+from comfyclaw.agent_backends.grok_backend import GrokCLIBackend, _build_grok_intent_gate
 
 SID = "12345678-1234-1234-1234-123456789abc"
 
@@ -30,19 +30,30 @@ def grok_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def test_intent_gate_preserves_general_qa_path() -> None:
-    assert "CONVERSATION" in _GROK_INTENT_GATE
-    assert "Use `answer_user` and stop" in _GROK_INTENT_GATE
-    assert "Do not fabricate Goal/Target/Preserve/Change fields for ordinary Q&A" in _GROK_INTENT_GATE
-    assert "does not clearly request a workflow mutation" in _GROK_INTENT_GATE
+def test_production_intent_gate_preserves_general_qa_path() -> None:
+    gate = _build_grok_intent_gate([{"name": "answer_user"}, {"name": "set_param"}])
+    assert "CONVERSATION" in gate
+    assert "Use `answer_user` and stop" in gate
+    assert "Do not fabricate Goal/Target/Preserve/Change fields for ordinary Q&A" in gate
+    assert "does not clearly request a workflow mutation" in gate
+
+
+def test_tool_free_chat_uses_rationale_instead_of_missing_answer_user_tool() -> None:
+    gate = _build_grok_intent_gate([])
+    assert "This invocation is tool-free chat" in gate
+    assert "Return `tool_calls: []`" in gate
+    assert "put the full user-facing answer in `rationale`" in gate
+    assert "set `done: true`" in gate
+    assert "Use `answer_user` and stop" not in gate
 
 
 def test_intent_gate_defines_workflow_contract_without_inventing_preferences() -> None:
+    gate = _build_grok_intent_gate([{"name": "answer_user"}, {"name": "set_param"}])
     for field in ("Goal", "Target", "Preserve", "Change", "Constraints", "Done"):
-        assert field in _GROK_INTENT_GATE
-    assert "keep it `not specified`; never invent a preference" in _GROK_INTENT_GATE
-    assert "Prefer the smallest reversible interpretation" in _GROK_INTENT_GATE
-    assert "Never broaden Target or Change" in _GROK_INTENT_GATE
+        assert field in gate
+    assert "keep it `not specified`; never invent a preference" in gate
+    assert "Prefer the smallest reversible interpretation" in gate
+    assert "Never broaden Target or Change" in gate
 
 
 def test_first_turn_injects_intent_gate_without_extra_cli_call(grok_home: Path) -> None:
@@ -75,7 +86,8 @@ def test_first_turn_injects_intent_gate_without_extra_cli_call(grok_home: Path) 
     assert "## Grok intent gate" in prompt
     assert "## User Input\n왜 이 그래프가 느려?" in prompt
     assert "Goal        = the requested end state" in prompt
-    assert "For ordinary Q&A use answer_user instead of workflow tools" in argv[argv.index("--rules") + 1]
+    rules = argv[argv.index("--rules") + 1]
+    assert "follow the conversation path described in the intent gate" in rules
 
 
 def test_first_turn_keeps_literal_workflow_constraints(grok_home: Path) -> None:
